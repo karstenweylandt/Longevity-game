@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Brandenburg Longevity Memory Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141714;
+    --card-back: #1a2019;
+    --card-front: #f5f0e8;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --sage: #7a9e7e;
+    --sage-dark: #4a6e4e;
+    --cream: #f5f0e8;
+    --text-dark: #1a1a14;
+    --matched: #2d4a30;
+    --matched-border: #7a9e7e;
+    --muted: #6b7c6d;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'Crimson Pro', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* Subtle noise texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    text-align: center;
+    padding: 3rem 2rem 1.5rem;
+    position: relative;
+    z-index: 1;
+    max-width: 700px;
+  }
+
+  .subtitle-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 0.8rem;
+    font-weight: 300;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 900;
+    line-height: 1.1;
+    color: var(--cream);
+    margin-bottom: 0.4rem;
+  }
+
+  h1 em {
+    color: var(--gold);
+    font-style: italic;
+  }
+
+  .tagline {
+    font-size: 1rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 1.5rem;
+    font-weight: 300;
+  }
+
+  .divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 0 auto 1.5rem;
+  }
+
+  /* Stats bar */
+  .stats {
+    display: flex;
+    gap: 2.5rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    color: var(--gold);
+    display: block;
+    text-align: center;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+  }
+
+  /* Instructions */
+  .instructions {
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+    max-width: 480px;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+    font-style: italic;
+    position: relative;
+    z-index: 1;
+    padding: 0 1rem;
+  }
+
+  /* Difficulty selector */
+  .difficulty-bar {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .diff-btn {
+    background: transparent;
+    border: 1px solid var(--sage-dark);
+    color: var(--muted);
+    font-family: 'Crimson Pro', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.4rem 1.1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .diff-btn:hover { border-color: var(--sage); color: var(--sage); }
+  .diff-btn.active { background: var(--sage-dark); border-color: var(--sage); color: var(--cream); }
+
+  /* Game grid */
+  .game-area {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    padding: 0 1rem 3rem;
+  }
+
+  #grid {
+    display: grid;
+    gap: 12px;
+    justify-content: center;
+  }
+
+  /* Cards */
+  .card {
+    aspect-ratio: 3/4;
+    cursor: pointer;
+    perspective: 1000px;
+    position: relative;
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .card.flipped .card-inner,
+  .card.matched .card-inner {
+    transform: rotateY(180deg);
+  }
+
+  .card-back, .card-front {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  /* Card back */
+  .card-back {
+    background: var(--card-back);
+    border: 1px solid #2a3a2a;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .card-back-inner {
+    width: 70%;
+    height: 70%;
+    border: 1px solid var(--sage-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .card-back-inner::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid #2a3a2a;
+  }
+
+  .card-symbol {
+    font-size: 1.2rem;
+    color: var(--sage-dark);
+    opacity: 0.7;
+  }
+
+  .card-back-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #2a3a2a;
+  }
+
+  /* Card front */
+  .card-front {
+    background: var(--card-front);
+    border: 1px solid #d4ccb8;
+    transform: rotateY(180deg);
+    flex-direction: column;
+    gap: 6px;
+    text-align: center;
+    padding: 12px 8px;
+  }
+
+  .card.matched .card-front {
+    background: #e8f0e4;
+    border-color: var(--matched-border);
+  }
+
+  .card-type-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  .label-intervention {
+    color: var(--sage-dark);
+    background: rgba(74,110,78,0.12);
+    border: 1px solid rgba(74,110,78,0.3);
+  }
+
+  .label-effect {
+    color: #7a5a2a;
+    background: rgba(122,90,42,0.1);
+    border: 1px solid rgba(122,90,42,0.25);
+  }
+
+  .label-evidence {
+    color: #4a5a8a;
+    background: rgba(74,90,138,0.1);
+    border: 1px solid rgba(74,90,138,0.2);
+  }
+
+  .card-text {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+    color: var(--text-dark);
+    line-height: 1.3;
+    font-weight: 700;
+  }
+
+  .card-subtext {
+    font-family: 'Crimson Pro', serif;
+    font-size: clamp(0.6rem, 1.2vw, 0.72rem);
+    color: #555;
+    line-height: 1.3;
+    font-style: italic;
+    font-weight: 300;
+  }
+
+  .card-icon {
+    font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+    line-height: 1;
+  }
+
+  /* Shake animation for wrong match */
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  .shake { animation: shake 0.4s ease; }
+
+  /* Match pulse */
+  @keyframes matchPulse {
+    0% { box-shadow: 0 0 0 0 rgba(122, 158, 126, 0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(122, 158, 126, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(122, 158, 126, 0); }
+  }
+  .card.matched { animation: matchPulse 0.6s ease; }
+
+  /* Win screen */
+  .win-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(13,15,14,0.95);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
+    padding: 2rem;
+  }
+  .win-overlay.show { display: flex; }
+
+  .win-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 6vw, 4rem);
+    font-weight: 900;
+    color: var(--gold);
+    line-height: 1;
+  }
+
+  .win-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    font-style: italic;
+    max-width: 400px;
+  }
+
+  .win-stats {
+    display: flex;
+    gap: 3rem;
+    justify-content: center;
+  }
+
+  .btn-restart {
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    font-family: 'Crimson Pro', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.8rem 2.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 0.5rem;
+  }
+  .btn-restart:hover { background: var(--gold-light); }
+
+  /* Legend */
+  .legend {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 0 1rem 1rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 1px;
+  }
+
+  @media (max-width: 480px) {
+    .stats { gap: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="subtitle-label">Evidence-Based Longevity Science</div>
+  <h1>The Brandenburg<br><em>Longevity</em> Memory Game</h1>
+  <div class="tagline">Match interventions to their evidence of effect</div>
+  <div class="divider"></div>
+</header>
+
+<div class="stats">
+  <div class="stat-block">
+    <span class="stat-val" id="movesDisplay">0</span>
+    <span class="stat-label">Moves</span>
+  </div>
+  <div class="stat-block">
+    <span class="stat-val" id="pairsDisplay">0</span>
+    <span class="stat-label">Pairs Found</span>
+  </div>
+  <div class="stat-block">
+    <span class="stat-val" id="timerDisplay">0:00</span>
+    <span class="stat-label">Time</span>
+  </div>
+</div>
+
+<p class="instructions">
+  Find matching pairs: each longevity intervention card matches its evidence card.
+  Drawn from peer-reviewed research in the Brandenburg Longevity Clinic Report.
+</p>
+
+<div class="difficulty-bar">
+  <button class="diff-btn" onclick="setDifficulty(6)">6 Pairs</button>
+  <button class="diff-btn active" onclick="setDifficulty(10)">10 Pairs</button>
+  <button class="diff-btn" onclick="setDifficulty(13)">Full Deck</button>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#7a9e7e; border:1px solid #7a9e7e;"></div>
+    Intervention
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#b8924a; border:1px solid #b8924a;"></div>
+    Effect on Mortality / Longevity
+  </div>
+</div>
+
+<div class="game-area">
+  <div id="grid"></div>
+</div>
+
+<div class="win-overlay" id="winOverlay">
+  <div class="win-title">Remarkable.</div>
+  <div class="win-sub">You've matched all longevity interventions to their evidence.</div>
+  <div class="win-stats">
+    <div class="stat-block">
+      <span class="stat-val" id="finalMoves">—</span>
+      <span class="stat-label">Total Moves</span>
+    </div>
+    <div class="stat-block">
+      <span class="stat-val" id="finalTime">—</span>
+      <span class="stat-label">Time</span>
+    </div>
+  </div>
+  <button class="btn-restart" onclick="restartGame()">Play Again</button>
+</div>
+
+<script>
+// All 13 pairs from the report
+const ALL_PAIRS = [
+  {
+    id: 1,
+    icon: '🚭',
+    intervention: 'Smoking Cessation',
+    interventionSub: 'Most impactful single modifiable factor',
+    effect: 'Up to 10 years gained; 3-fold mortality reduction',
+    effectSub: 'British Doctors Study — 50yr cohort, n=34,439',
+    tier: 1
+  },
+  {
+    id: 2,
+    icon: '🚶',
+    intervention: 'Physical Activity',
+    interventionSub: 'Steps + resistance training',
+    effect: '15% mortality reduction per 1,000 steps/day',
+    effectSub: 'Banach et al. 2023 — 17 cohorts, n=226,889',
+    tier: 1
+  },
+  {
+    id: 3,
+    icon: '🫒',
+    intervention: 'Mediterranean Diet',
+    interventionSub: 'Olive oil, legumes, fish, whole grains',
+    effect: '50% lower death risk over 5–7 years',
+    effectSub: 'PREDIMED + FHILL study — n=818 elderly',
+    tier: 1
+  },
+  {
+    id: 4,
+    icon: '😴',
+    intervention: 'Optimal Sleep (7 hrs)',
+    interventionSub: 'Consolidated, not fragmented',
+    effect: 'Short or long sleep: 12–30% higher mortality',
+    effectSub: 'Cappuccio et al. 2010 — 1.38M participants',
+    tier: 1
+  },
+  {
+    id: 5,
+    icon: '🤝',
+    intervention: 'Social Connection',
+    interventionSub: 'Reduces isolation and loneliness',
+    effect: 'Isolation equivalent to smoking 15 cigarettes/day',
+    effectSub: 'Holt-Lunstad 2021 — population cohorts',
+    tier: 1
+  },
+  {
+    id: 6,
+    icon: '🐟',
+    intervention: 'Omega-3 Fatty Acids',
+    interventionSub: 'Marine EPA & DHA — not plant ALA',
+    effect: '15–18% lower all-cause mortality (top vs bottom quintile)',
+    effectSub: 'Harris et al. 2021 — n=42,466 across 17 cohorts',
+    tier: 2
+  },
+  {
+    id: 7,
+    icon: '🌾',
+    intervention: 'Whole Grain Consumption',
+    interventionSub: 'Every additional serving per day',
+    effect: '18% lower all-cause mortality; 7% per extra daily serving',
+    effectSub: 'Ma et al. 2016 — n=843,749 participants',
+    tier: 2
+  },
+  {
+    id: 8,
+    icon: '💪',
+    intervention: 'Muscle Strength (Grip)',
+    interventionSub: 'Handgrip as proxy for whole-body strength',
+    effect: 'Inverse dose-response: lower grip = higher mortality',
+    effectSub: 'López-Bueno et al. 2022 — n=3.1M participants',
+    tier: 1
+  },
+  {
+    id: 9,
+    icon: '🍽️',
+    intervention: 'Caloric Restriction',
+    interventionSub: '10–15% sustained caloric deficit',
+    effect: 'Slows biological ageing; reduces oxidative stress markers',
+    effectSub: 'CALERIE RCT — Redman et al. 2018',
+    tier: 2
+  },
+  {
+    id: 10,
+    icon: '💊',
+    intervention: 'Metformin',
+    interventionSub: 'AMPK activation, mTOR inhibition',
+    effect: 'Reduces age-related diseases; TAME trial ongoing',
+    effectSub: 'Barzilai et al. 2016 — observational + RCT',
+    tier: 3
+  },
+  {
+    id: 11,
+    icon: '🧬',
+    intervention: 'Rapamycin / mTOR Inhibition',
+    interventionSub: 'Strongest animal longevity data',
+    effect: '14% lifespan extension in mice; no human lifespan data yet',
+    effectSub: 'Harrison et al. 2009 — ITP mouse study',
+    tier: 4
+  },
+  {
+    id: 12,
+    icon: '⚗️',
+    intervention: 'NAD+ Precursors (NR/NMN)',
+    interventionSub: 'Nicotinamide riboside, 500–1000mg/day',
+    effect: 'Raises NAD+; reduces neurodegenerative biomarkers',
+    effectSub: 'Vreones et al. 2022 — n=22, small RCT',
+    tier: 3
+  },
+  {
+    id: 13,
+    icon: '🕰️',
+    intervention: 'Epigenetic Clock Slowing',
+    interventionSub: 'Omega-3 + Vit D + Exercise combined',
+    effect: '~3 months biological age benefit over 3 years',
+    effectSub: 'Bischoff-Ferrari et al. 2025 — DO-HEALTH RCT',
+    tier: 2
+  }
+];
+
+let flipped = [];
+let matched = [];
+let moves = 0;
+let pairs = 0;
+let totalPairs = 10;
+let timerInterval = null;
+let seconds = 0;
+let locked = false;
+let currentCards = [];
+
+function setDifficulty(n) {
+  totalPairs = n;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  restartGame();
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildCards(pairs) {
+  const cards = [];
+  pairs.forEach(p => {
+    cards.push({ pairId: p.id, type: 'intervention', ...p });
+    cards.push({ pairId: p.id, type: 'effect', ...p });
+  });
+  return shuffle(cards);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}:${ss.toString().padStart(2,'0')}`;
+}
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  seconds = 0;
+  timerInterval = setInterval(() => {
+    seconds++;
+    document.getElementById('timerDisplay').textContent = formatTime(seconds);
+  }, 1000);
+}
+
+function getGridCols(n) {
+  if (n <= 12) return 4;
+  if (n <= 16) return 4;
+  return 5;
+}
+
+function getCardWidth(cols) {
+  const maxWidth = Math.min(900, window.innerWidth - 32);
+  const gap = 12 * (cols - 1);
+  return Math.floor((maxWidth - gap) / cols);
+}
+
+function render() {
+  const grid = document.getElementById('grid');
+  const totalCards = currentCards.length;
+  const cols = getGridCols(totalCards);
+  const cardW = getCardWidth(cols);
+
+  grid.style.gridTemplateColumns = `repeat(${cols}, ${cardW}px)`;
+
+  grid.innerHTML = '';
+  currentCards.forEach((card, idx) => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.dataset.idx = idx;
+    if (matched.includes(card.pairId + '-' + card.type) || matched.includes(card.pairId)) {
+      // check if this pair is matched
+    }
+
+    const typeLabel = card.type === 'intervention'
+      ? '<span class="card-type-label label-intervention">Intervention</span>'
+      : '<span class="card-type-label label-effect">Evidence of Effect</span>';
+
+    const mainText = card.type === 'intervention' ? card.intervention : card.effect;
+    const subText  = card.type === 'intervention' ? card.interventionSub : card.effectSub;
+
+    el.innerHTML = `
+      <div class="card-inner">
+        <div class="card-back">
+          <div class="card-back-inner">
+            <span class="card-symbol">✦</span>
+          </div>
+          <span class="card-back-label">Brandenburg</span>
+        </div>
+        <div class="card-front">
+          ${typeLabel}
+          <div class="card-icon">${card.icon}</div>
+          <div class="card-text">${mainText}</div>
+          <div class="card-subtext">${subText}</div>
+        </div>
+      </div>
+    `;
+
+    el.addEventListener('click', () => onCardClick(el, card, idx));
+    grid.appendChild(el);
+  });
+}
+
+function onCardClick(el, card, idx) {
+  if (locked) return;
+  if (el.classList.contains('flipped') || el.classList.contains('matched')) return;
+  if (flipped.length === 2) return;
+
+  if (seconds === 0 && moves === 0 && timerInterval === null) {
+    startTimer();
+  }
+
+  el.classList.add('flipped');
+  flipped.push({ el, card, idx });
+
+  if (flipped.length === 2) {
+    moves++;
+    document.getElementById('movesDisplay').textContent = moves;
+    locked = true;
+
+    const [a, b] = flipped;
+    if (a.card.pairId === b.card.pairId && a.card.type !== b.card.type) {
+      // Match!
+      setTimeout(() => {
+        a.el.classList.add('matched');
+        b.el.classList.add('matched');
+        pairs++;
+        document.getElementById('pairsDisplay').textContent = pairs;
+        flipped = [];
+        locked = false;
+
+        if (pairs === totalPairs) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          setTimeout(showWin, 600);
+        }
+      }, 400);
+    } else {
+      // No match
+      setTimeout(() => {
+        a.el.classList.add('shake');
+        b.el.classList.add('shake');
+        setTimeout(() => {
+          a.el.classList.remove('flipped', 'shake');
+          b.el.classList.remove('flipped', 'shake');
+          flipped = [];
+          locked = false;
+        }, 500);
+      }, 700);
+    }
+  }
+}
+
+function showWin() {
+  document.getElementById('finalMoves').textContent = moves;
+  document.getElementById('finalTime').textContent = formatTime(seconds);
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+function restartGame() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  flipped = [];
+  matched = [];
+  moves = 0;
+  pairs = 0;
+  seconds = 0;
+  locked = false;
+  document.getElementById('movesDisplay').textContent = '0';
+  document.getElementById('pairsDisplay').textContent = '0';
+  document.getElementById('timerDisplay').textContent = '0:00';
+  document.getElementById('winOverlay').classList.remove('show');
+
+  const selected = shuffle(ALL_PAIRS).slice(0, totalPairs);
+  currentCards = buildCards(selected);
+  render();
+}
+
+// Init
+setDifficulty(10);
+// Fix the difficulty button active state on init without event
+document.querySelectorAll('.diff-btn').forEach(b => {
+  b.removeEventListener('click', null);
+  b.classList.remove('active');
+});
+document.querySelector('.diff-btn:nth-child(2)').classList.add('active');
+document.querySelectorAll('.diff-btn').forEach((b, i) => {
+  const vals = [6, 10, 13];
+  b.addEventListener('click', function() {
+    document.querySelectorAll('.diff-btn').forEach(x => x.classList.remove('active'));
+    this.classList.add('active');
+    totalPairs = vals[i];
+    restartGame();
+  });
+});
+
+const selected = shuffle(ALL_PAIRS).slice(0, totalPairs);
+currentCards = buildCards(selected);
+render();
+</script>
+</body>
+</html>
